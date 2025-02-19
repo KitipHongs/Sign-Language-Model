@@ -1,0 +1,7 @@
+Flask
+tensorflow
+opencv-python
+mediapipe
+numpy
+plotly
+gunicorn

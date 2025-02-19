@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Gesture Recognition</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #video-container { margin-top: 20px; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>Real-Time Gesture Recognition</h1>
+    <button onclick="startStream()">Start</button>
+    <button onclick="stopStream()">Stop</button>
+    
+    <div id="video-container">
+        <img id="video-feed" src="/video_feed" width="640" height="480">
+    </div>
+    
+    <h2>Model Confidence</h2>
+    <div id="confidence-chart"></div>
+    
+    <script>
+        let confidenceData = [];
+        let timeData = [];
+        let maxPoints = 50;
+        
+        function fetchConfidenceData() {
+            fetch('/confidence_data')
+                .then(response => response.json())
+                .then(data => {
+                    confidenceData = data;
+                    timeData = Array.from({length: data.length}, (_, i) => i);
+                    updateChart();
+                });
+        }
+        
+        function updateChart() {
+            Plotly.newPlot('confidence-chart', [{
+                x: timeData,
+                y: confidenceData,
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: 'blue' }
+            }], {
+                title: 'Model Confidence Over Time',
+                xaxis: { title: 'Time' },
+                yaxis: { title: 'Confidence Score', range: [0, 1] }
+            });
+        }
+        
+        function startStream() {
+            fetch('/start', { method: 'POST' });
+            setInterval(fetchConfidenceData, 1000);
+        }
+        
+        function stopStream() {
+            fetch('/stop', { method: 'POST' });
+        }
+    </script>
+</body>
+</html>
