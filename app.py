@@ -160,8 +160,33 @@ waiting_for_hand = False
 def generate_frames():
     global sequence, is_recording, recording_frames, final_prediction, waiting_for_hand, show_text
     
-    cap = cv2.VideoCapture(0)  # Use 0 for default camera, change if needed
+def generate_frames():
+    global sequence, is_recording, recording_frames, final_prediction, waiting_for_hand, show_text
     
+    # ตรวจสอบว่าอยู่ใน environment ที่มีกล้องหรือไม่
+    running_on_render = os.environ.get('RENDER', False)
+    
+    if running_on_render:
+        # ถ้าทำงานบน Render ใช้ dummy video เพื่อการทดสอบ
+        # สร้าง blank frame
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        while True:
+            display_frame = frame.copy()
+            # แสดงข้อความเตือน
+            cv2.putText(display_frame, "Camera access not available on cloud deployment",
+                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(display_frame, "Please use local deployment for camera access",
+                       (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            
+            # Encode frame และส่งกลับ
+            ret, buffer = cv2.imencode('.jpg', display_frame)
+            frame_bytes = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+    else:
+        # ทำงานโดยใช้กล้องเหมือนเดิมเมื่อรันบนเครื่องโลคอล
+        cap = cv2.VideoCapture(0)  # Use 0 for default camera, change if needed
+        
     while True:
         ret, frame = cap.read()
         if not ret:
