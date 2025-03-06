@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Examples of TSL Gestures</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+
+        .header {
+            background-color: #3b82f6;
+            padding: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            margin-left: 20px;
+        }
+
+        .logo {
+            height: 40px;
+            margin-right: 10px;
+        }
+
+        .header-text {
+            color: white;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .back-button {
+            background-color: #1d4ed8;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            text-decoration: none;
+            margin-right: 20px;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 10px;
+        }
+
+        .gesture-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+            /* Increased gap between cards */
+            margin-top: 20px;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .gesture-card {
+            background-color: #3b82f6;
+            border-radius: 10px;
+            overflow: hidden;
+            text-align: center;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.4);
+            /* Darker, more pronounced shadow */
+            aspect-ratio: 1 / 1.2;
+            width: 90%;
+            /* Reduce width to 90% of the grid cell */
+            margin: 0 auto;
+            /* Center the card in its grid cell */
+            padding: 10px 10px 0 10px;
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.9);
+            /* Scale down the card slightly */
+        }
+
+        .gesture-image {
+            width: 100%;
+            height: 80%;
+            object-fit: contain;
+            background-color: #c7d8f7;
+            border-radius: 8px;
+            border: 2px solid #888;
+            /* Add subtle border around image */
+        }
+
+        .gesture-name {
+            padding: 10px 0;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            /* Add text shadow for better readability */
+        }
+
+        .gesture-card {
+            background-color: #3b82f6;
+            border-radius: 10px;
+            overflow: hidden;
+            text-align: center;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.4);
+            /* Darker, more pronounced shadow */
+            aspect-ratio: 1 / 1.2;
+            width: 90%;
+            /* Reduce width to 90% of the grid cell */
+            margin: 0 auto;
+            /* Center the card in its grid cell */
+            padding: 10px 10px 0 10px;
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.9);
+            /* Scale down the card slightly */
+        }
+
+
+        .gesture-name {
+            padding: 10px 0;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            /* Add text shadow for better readability */
+        }
+
+        .footer {
+            background-color: #3b82f6;
+            padding: 10px 0;
+            color: white;
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .title-section {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .title-section h1 {
+            color: #3b82f6;
+            margin-bottom: 10px;
+        }
+
+        .title-section p {
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div class="logo-container">
+            <img src="https://drive.google.com/thumbnail?id=1-qu6krosVXPoB5X-ddUQc-gRdhfD6sSC&sz=w1000" alt="Logo 1"
+                class="logo">
+            <img src="https://drive.google.com/thumbnail?id=1DtFpHlqoJzqmSFR3qWPhnfNVaNHs3T_9&sz=w1000" alt="Logo 2"
+                class="logo">
+        </div>
+        <div class="header-text">Sign Language Translation</div>
+        <a href="/" class="back-button">Back to Translator</a>
+    </div>
+
+    <div class="container">
+        <div class="title-section">
+            <h1>Examples of TSL Gestures</h1>
+            <p>Below are common Thai Sign Language gestures recognized by the system</p>
+        </div>
+
+        <div class="gesture-grid">
+            <!-- Row 1 -->
+            <a href="/gesture?gesture=Dangerous" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1Hm0r9tJb-e3dmm5wrYAuQ9tOBKQdye8k&sz=w1000"
+                    alt="Dangerous gesture" class="gesture-image">
+                <div class="gesture-name">อันตราย (Dangerous)</div>
+            </a>
+            <a href="/gesture?gesture=Dormitory" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1P-ycUfswXpV4fOLEe5vVe59MLM6NAtFc&sz=w1000"
+                    alt="Dormitory gesture" class="gesture-image">
+                <div class="gesture-name">หอพัก (Dormitory)</div>
+            </a>
+            <a href="/gesture?gesture=Hello" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1ZNUCDBJf0vZx_xiAh4QW9UxkoMu2aG3M&sz=w1000"
+                    alt="Hello gesture" class="gesture-image">
+                <div class="gesture-name">สวัสดี (Hello)</div>
+            </a>
+
+            <!-- Row 2 -->
+            <a href="/gesture?gesture=Hospital" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1qXhmYsZCmzuwumuoQ3MR7E5pgTUOtSoQ&sz=w1000"
+                    alt="Hospital gesture" class="gesture-image">
+                <div class="gesture-name">โรงพยาบาล (Hospital)</div>
+            </a>
+            <a href="/gesture?gesture=I" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1jaqGhx7Eh9aG42odYmJWD7Zs5nbfSher&sz=w1000"
+                    alt="I gesture" class="gesture-image">
+                <div class="gesture-name">ฉัน (I)</div>
+            </a>
+            <a href="/gesture?gesture=Love" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1p7b3VEk6HnqHLNz99vF5-vT-PmNUUwan&sz=w1000"
+                    alt="Love gesture" class="gesture-image">
+                <div class="gesture-name">รัก (Love)</div>
+            </a>
+
+            <!-- Row 3 -->
+            <a href="/gesture?gesture=Nickname" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1PCTO3tlAbNwvGsR30jZ0Gq05mX35ghBQ&sz=w1000"
+                    alt="Nickname gesture" class="gesture-image">
+                <div class="gesture-name">ชื่อเล่น (Nickname)</div>
+            </a>
+            <a href="/gesture?gesture=Overpass" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1cVxcVKu6AMCpPNpdo0AXLpN9uEkriVvx&sz=w1000"
+                    alt="Overpass gesture" class="gesture-image">
+                <div class="gesture-name">สะพานลอย (Overpass)</div>
+            </a>
+            <a href="/gesture?gesture=Police Station" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1VLpsphgKrNGoT2ob_iNa4fpHB5quQzUG&sz=w1000"
+                    alt="Police Station gesture" class="gesture-image">
+                <div class="gesture-name">สถานีตำรวจ (Police Station)</div>
+            </a>
+
+            <!-- Row 4 -->
+            <a href="/gesture?gesture=Sad" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1wBb9y4_OzmPWM9B7JmSNRkBlqBvNlHD7&sz=w1000"
+                    alt="Sad gesture" class="gesture-image">
+                <div class="gesture-name">เศร้า (Sad)</div>
+            </a>
+            <a href="/gesture?gesture=Sleepy" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1iUrQvqSjFwl4apg9_wIp0UnrMkpGaZjX&sz=w1000"
+                    alt="Sleepy gesture" class="gesture-image">
+                <div class="gesture-name">ง่วงนอน (Sleepy)</div>
+            </a>
+            <a href="/gesture?gesture=Sorry" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=17q70RynXtGCCrLXSJ_SDezg1owV1Fwpa&sz=w1000"
+                    alt="Sorry gesture" class="gesture-image">
+                <div class="gesture-name">ขอโทษ (Sorry)</div>
+            </a>
+
+            <!-- Row 5 -->
+            <a href="/gesture?gesture=Speak" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1KTF0-IwsYeETZm4A3GHSO24_WVWM479_&sz=w1000"
+                    alt="Speak gesture" class="gesture-image">
+                <div class="gesture-name">พูด (Speak)</div>
+            </a>
+            <a href="/gesture?gesture=Stressed" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1Mib1esA5KjPSzsH1GasVN68XznoSB65F&sz=w1000"
+                    alt="Stressed gesture" class="gesture-image">
+                <div class="gesture-name">เครียด (Stressed)</div>
+            </a>
+            <a href="/gesture?gesture=Thank you" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1sLVFNRgD4RvsD4K346ZcOxiHVyizYrhv&sz=w1000"
+                    alt="Thank you gesture" class="gesture-image">
+                <div class="gesture-name">ขอบคุณ (Thank you)</div>
+            </a>
+
+            <!-- Row 6 -->
+            <a href="/gesture?gesture=University" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=10mmNvP7Bk2RckM54GsVRsO4DcPUCddFI&sz=w1000"
+                    alt="University gesture" class="gesture-image">
+                <div class="gesture-name">มหาวิทยาลัย (University)</div>
+            </a>
+            <a href="/gesture?gesture=Unwell" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1ps5Z3rLPLF8M7DRj5Ow3HiyI2coKXRgu&sz=w1000"
+                    alt="Unwell gesture" class="gesture-image">
+                <div class="gesture-name">ไม่สบาย (Unwell)</div>
+            </a>
+            <a href="/gesture?gesture=What time" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1k9Tsc5dZUdIFeSLQoqSMpAKb2AfAnjHZ&sz=w1000"
+                    alt="What time gesture" class="gesture-image">
+                <div class="gesture-name">กี่โมง (What time)</div>
+            </a>
+
+            <!-- Row 7 (With 2 cards only) -->
+            <a href="/gesture?gesture=Worried" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1df8DBRDnI3sOiN_g5MKfCsrO5szcmT7P&sz=w1000"
+                    alt="Worried gesture" class="gesture-image">
+                <div class="gesture-name">กังวล (Worried)</div>
+            </a>
+            <a href="/gesture?gesture=You" class="gesture-card">
+                <img src="https://drive.google.com/thumbnail?id=1nZJ-dI3fDrKaYcVYWE7PDaiquWRiQOMV&sz=w1000"
+                    alt="You gesture" class="gesture-image">
+                <div class="gesture-name">คุณ (You)</div>
+            </a>
+        </div>
+    </div>
+
+    <div class="footer">
+        Deep Learning-Powered Sign Language Interpreter Bridging Communication Gaps
+    </div>
+</body>
+
+</html>

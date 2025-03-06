@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: sign-language-translator
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: true

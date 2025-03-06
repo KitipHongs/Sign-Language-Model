@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Sign Language Translation</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+
+        .header {
+            background-color: #3b82f6;
+            padding: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            margin-right: 20px;
+        }
+
+        .logo {
+            height: 50px;
+            margin-right: 10px;
+        }
+
+        .header-text {
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .examples-button {
+            background-color: #1d4ed8;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            text-decoration: none;
+            margin-left: 20px;
+            font-size: 16px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .thai-text {
+            font-size: 18px;
+            margin: 20px 0;
+        }
+
+        .video-container {
+            width: 100%;
+            margin: 20px 0;
+            display: flex;
+            justify-content: center;
+            position: relative;
+        }
+
+        #video-feed {
+            width: 400px;
+            height: 300px;
+            background-color: #ddd;
+            border: 1px solid #ccc;
+            box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .test-icon {
+            position: absolute;
+            right: 10%;
+            top: 0;
+            text-align: center;
+        }
+
+        .test-icon-box {
+            width: 40px;
+            height: 40px;
+            background-color: white;
+            border: 2px solid black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .test-label {
+            background-color: #6b9eff;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            margin-top: 5px;
+        }
+
+        .control-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .control-button {
+            padding: 10px 25px;
+            background-color: #6b9eff;
+            color: black;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .control-button:hover {
+            background-color: #5a8eff;
+        }
+
+        .footer {
+            background-color: #3b82f6;
+            padding: 10px 0;
+            color: white;
+            text-align: center;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin: 0 10px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #2196F3;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        /* Progress bar (energy bar) styles */
+        .progress-container {
+            width: 400px;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            margin: 20px auto;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #4CAF50;
+            border-radius: 10px;
+            transition: width 0.1s ease;
+        }
+
+        .progress-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 20px;
+            color: #333;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 1;
+        }
+
+        /* Result container styles */
+        .result-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-text {
+            font-size: 22px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        /* Toggle for camera text visibility */
+        .toggle-container-text {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <!-- แทนที่ลิงก์เดิมด้วยลิงก์ที่ถูกต้องสำหรับการแสดงรูปภาพจาก Google Drive -->
+        <div class="logo-container">
+            <img src="https://drive.google.com/thumbnail?id=1-qu6krosVXPoB5X-ddUQc-gRdhfD6sSC&sz=w1000" alt="Logo 1" class="logo">
+            <img src="https://drive.google.com/thumbnail?id=1DtFpHlqoJzqmSFR3qWPhnfNVaNHs3T_9&sz=w1000" alt="Logo 2" class="logo">
+        </div>
+        <div class="header-text">Sign Language Translation</div>
+        <a href="/examples" class="examples-button">Examples of TSL Gestures</a>
+    </div>
+
+    <div class="container">
+        
+
+        <div class="video-container">
+            <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Video Feed">
+        </div>
+
+        <!-- Progress/Energy bar with frame counter -->
+        <div class="progress-container">
+            <div class="progress-text" id="progress-text">0/30 เฟรม</div>
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <!-- Result container outside video area -->
+        <div class="result-container">
+            <div class="result-text" id="result-text">ยังไม่มีการทำนาย</div>
+        </div>
+
+        <div class="control-buttons">
+            <button class="control-button" id="record-btn">Start</button>
+            <button class="control-button" id="clear-btn">Cancel</button>
+        </div>
+    </div>
+
+    <div class="footer">
+        Deep Learning-Powered Sign Language Interpreter Bridging Communication Gaps
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const recordBtn = document.getElementById('record-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const landmarksToggle = document.getElementById('landmarks-toggle');
+            const hideTextToggle = document.getElementById('hide-text-toggle');
+            const resultText = document.getElementById('result-text');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+
+            let currentFrames = 0;
+            let totalFrames = 30; // Set to match SEQUENCE_LENGTH in your Flask app
+            let isRecording = false;
+            let updateInterval;
+
+            // Function to update prediction and status
+            function updateStatus() {
+                fetch('/get_prediction')
+                    .then(response => response.json())
+                    .then(data => {
+                        // Update prediction result
+                        if (data.prediction !== "None") {
+                            resultText.textContent = data.prediction;
+                        }
+
+                        // If frames info is available in the response
+                        if (data.hasOwnProperty('frames')) {
+                            currentFrames = data.frames;
+                            updateProgressBar();
+                        }
+                    })
+                    .catch(error => console.error('Error fetching status:', error));
+            }
+
+            // Function to update progress bar based on frames
+            function updateProgressBar() {
+                const percentage = Math.min(100, (currentFrames / totalFrames) * 100);
+                progressBar.style.width = percentage + '%';
+                progressText.textContent = `${currentFrames}/${totalFrames} เฟรม`;
+
+                // If we've reached the end of recording
+                if (currentFrames >= totalFrames && isRecording) {
+                    isRecording = false;
+                    progressBar.style.backgroundColor = '#4CAF50'; // Green for completion
+                }
+            }
+
+            // Set up interval to periodically update status
+            updateInterval = setInterval(updateStatus, 100);
+
+            // Record button click handler
+            recordBtn.addEventListener('click', function () {
+                fetch('/start_recording')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === "waiting_for_hand") {
+                            resultText.textContent = "กำลังรอตรวจจับมือ...";
+                            currentFrames = 0;
+                            isRecording = true;
+                            progressBar.style.width = '0%';
+                            progressBar.style.backgroundColor = '#4CAF50';
+                            progressText.textContent = `0/${totalFrames} เฟรม`;
+                        }
+                    })
+                    .catch(error => console.error('Error starting recording:', error));
+            });
+
+            // Clear button click handler
+            clearBtn.addEventListener('click', function () {
+                fetch('/clear')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === "cleared") {
+                            resultText.textContent = "ยังไม่มีการทำนาย";
+                            currentFrames = 0;
+                            isRecording = false;
+                            progressBar.style.width = '0%';
+                            progressText.textContent = `0/${totalFrames} เฟรม`;
+                        }
+                    })
+                    .catch(error => console.error('Error clearing data:', error));
+            });
+
+            // Landmarks toggle handler
+            landmarksToggle.addEventListener('change', function () {
+                const showLandmarks = this.checked;
+
+                fetch('/toggle_landmarks', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        show: showLandmarks
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Landmarks visibility updated:', data);
+                    })
+                    .catch(error => console.error('Error toggling landmarks:', error));
+            });
+
+            // Hide camera text toggle handler
+            hideTextToggle.addEventListener('change', function () {
+                const hideText = this.checked;
+
+                fetch('/toggle_text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hide: hideText
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Text visibility updated:', data);
+                    })
+                    .catch(error => console.error('Error toggling text visibility:', error));
+            });
+
+            // Examples button handler
+            document.querySelector('.examples-button').addEventListener('click', function (e) {
+                e.preventDefault();
+                window.location.href = '/examples';
+            });
+        });
+    </script>
+</body>
+
+</html>
