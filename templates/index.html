@@ -10,7 +10,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <style>
-        /* Keep your existing CSS styles */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -233,8 +232,21 @@
     </div>
 
     <div class="container">
+        <div class="toggle-container">
+            <span>แสดงจุดสำคัญ:</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="landmarks-toggle">
+                <span class="slider"></span>
+            </label>
+            <span>ซ่อนข้อความ:</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="hide-text-toggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+
         <div class="video-container">
-            <video id="video-feed" autoplay playsinline></video>
+            <img id="video-feed" src="/video_feed" alt="Video Feed">
             <canvas id="output-canvas" width="400" height="300"></canvas>
         </div>
         <!-- Progress/Energy bar with frame counter -->
@@ -261,8 +273,6 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const videoElement = document.getElementById('video-feed');
-            const canvasElement = document.getElementById('output-canvas');
-            const canvasCtx = canvasElement.getContext('2d');
             const recordBtn = document.getElementById('record-btn');
             const clearBtn = document.getElementById('clear-btn');
             const landmarksToggle = document.getElementById('landmarks-toggle');
@@ -271,256 +281,119 @@
             const progressBar = document.getElementById('progress-bar');
             const progressText = document.getElementById('progress-text');
 
-            // MediaPipe Holistic model
-            const holistic = new Holistic({
-                locateFile: (file) => {
-                    return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
-                }
-            });
-
-            // Set up the camera
-            const camera = new Camera(videoElement, {
-                onFrame: async () => {
-                    await holistic.send({ image: videoElement });
-                },
-                width: 400,
-                height: 300
-            });
-
-            // Variables for recording sequence
-            let sequence = [];
-            let isRecording = false;
-            let waitingForHand = false;
-            let showLandmarks = false;
-            let showText = false;
+            // Variables for tracking
             let currentFrames = 0;
             const SEQUENCE_LENGTH = 30;
+            let predictionInterval;
 
-            // Upper body indices for pose landmarks
-            const upperBodyIndices = [
-                0,  // nose
-                11, 12,  // shoulders
-                13, 14, 15, 16,  // arms
-                23, 24,  // hips
-                19, 20,  // elbows
-                21, 22,  // wrists
-            ];
-
-            // Extract landmarks from MediaPipe results
-            function extractLandmarks(results) {
-                const landmarks = [];
-                
-                // 1. Extract Hand landmarks (21 points per hand)
-                if (results.leftHandLandmarks) {
-                    for (const landmark of results.leftHandLandmarks) {
-                        landmarks.push(landmark.x, landmark.y, landmark.z);
-                    }
-                } else {
-                    // Pad with zeros if no left hand detected
-                    landmarks.push(...Array(21 * 3).fill(0));
-                }
-                
-                if (results.rightHandLandmarks) {
-                    for (const landmark of results.rightHandLandmarks) {
-                        landmarks.push(landmark.x, landmark.y, landmark.z);
-                    }
-                } else {
-                    // Pad with zeros if no right hand detected
-                    landmarks.push(...Array(21 * 3).fill(0));
-                }
-                
-                // 2. Extract Face mesh landmarks (468 points)
-                if (results.faceLandmarks) {
-                    for (const landmark of results.faceLandmarks) {
-                        landmarks.push(landmark.x, landmark.y, landmark.z);
-                    }
-                } else {
-                    // Pad with zeros if no face detected
-                    landmarks.push(...Array(468 * 3).fill(0));
-                }
-                
-                // 3. Extract Upper body landmarks
-                if (results.poseLandmarks) {
-                    // Extract only upper body points
-                    for (const idx of upperBodyIndices) {
-                        const landmark = results.poseLandmarks[idx];
-                        landmarks.push(landmark.x, landmark.y, landmark.z);
-                    }
-                } else {
-                    // Pad with zeros if no pose detected
-                    landmarks.push(...Array(upperBodyIndices.length * 3).fill(0));
-                }
-                
-                return landmarks;
-            }
-
-            // Draw landmarks on canvas
-            function drawLandmarks(results) {
-                canvasCtx.save();
-                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                
-                // Only draw if showLandmarks is true
-                if (showLandmarks) {
-                    if (results.leftHandLandmarks) {
-                        drawConnectors(canvasCtx, results.leftHandLandmarks, HAND_CONNECTIONS,
-                            { color: '#00FF00', lineWidth: 2 });
-                        drawLandmarks(canvasCtx, results.leftHandLandmarks,
-                            { color: '#FF0000', lineWidth: 1 });
-                    }
-                    
-                    if (results.rightHandLandmarks) {
-                        drawConnectors(canvasCtx, results.rightHandLandmarks, HAND_CONNECTIONS,
-                            { color: '#00FF00', lineWidth: 2 });
-                        drawLandmarks(canvasCtx, results.rightHandLandmarks,
-                            { color: '#FF0000', lineWidth: 1 });
-                    }
-                    
-                    if (results.faceLandmarks) {
-                        drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_TESSELATION,
-                            { color: '#00FF00', lineWidth: 0.5 });
-                    }
-                    
-                    if (results.poseLandmarks) {
-                        drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
-                            { color: '#00FF00', lineWidth: 2 });
-                        drawLandmarks(canvasCtx, results.poseLandmarks,
-                            { color: '#FF0000', lineWidth: 1 });
-                    }
-                }
-                
-                // Draw text information
-                if (showText) {
-                    canvasCtx.font = '16px Arial';
-                    canvasCtx.fillStyle = '#FF0000';
-                    
-                    if (waitingForHand) {
-                        if (!results.leftHandLandmarks && !results.rightHandLandmarks) {
-                            canvasCtx.fillText("ไม่พบมือ กรุณาแสดงมือให้กล้องเห็น", 10, 60);
-                        }
-                    }
-                    
-                    if (isRecording) {
-                        canvasCtx.fillText(`เริ่มบันทึก: ${currentFrames}/${SEQUENCE_LENGTH}`, 10, 60);
-                    }
-                }
-                
-                canvasCtx.restore();
-            }
-
-            // Initialize MediaPipe holistic model
-            holistic.setOptions({
-                modelComplexity: 1,
-                smoothLandmarks: true,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
-            });
-
-            // Start camera
-            camera.start();
-
-            // Event listener for holistic results
-            holistic.onResults((results) => {
-                drawLandmarks(results);
-                
-                // Check for hand detection when waiting
-                if (waitingForHand) {
-                    if (results.leftHandLandmarks || results.rightHandLandmarks) {
-                        isRecording = true;
-                        waitingForHand = false;
-                    }
-                }
-                
-                // Only record frames if we're recording and have detected hands
-                if (isRecording && currentFrames < SEQUENCE_LENGTH) {
-                    if (results.leftHandLandmarks || results.rightHandLandmarks) {
-                        const landmarks = extractLandmarks(results);
-                        sequence.push(landmarks);
-                        currentFrames++;
-                        updateProgressBar();
-                        
-                        // If we've completed the sequence, send it for processing
-                        if (currentFrames === SEQUENCE_LENGTH) {
-                            isRecording = false;
-                            sendSequenceForProcessing();
-                        }
-                    }
-                }
-            });
-
-            // Function to update progress bar based on frames
-            function updateProgressBar() {
-                const percentage = Math.min(100, (currentFrames / SEQUENCE_LENGTH) * 100);
-                progressBar.style.width = percentage + '%';
-                progressText.textContent = `${currentFrames}/${SEQUENCE_LENGTH} เฟรม`;
-
-                // If we've reached the end of recording
-                if (currentFrames >= SEQUENCE_LENGTH && isRecording) {
-                    isRecording = false;
-                    progressBar.style.backgroundColor = '#4CAF50'; // Green for completion
-                }
-            }
-
-            // Function to send the sequence to the server for processing
-            function sendSequenceForProcessing() {
-                fetch('/process_frames', {
+            // Landmarks toggle handler
+            landmarksToggle.addEventListener('change', function () {
+                fetch('/toggle_landmarks', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        frames: sequence
+                        show: this.checked
                     })
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'success') {
+                    console.log('Landmarks toggle:', data);
+                })
+                .catch(error => {
+                    console.error('Error toggling landmarks:', error);
+                });
+            });
+
+            // Hide camera text toggle handler
+            hideTextToggle.addEventListener('change', function () {
+                fetch('/toggle_text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        hide: this.checked
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Text toggle:', data);
+                })
+                .catch(error => {
+                    console.error('Error toggling text:', error);
+                });
+            });
+
+            // Function to update progress and prediction
+            function updatePrediction() {
+                fetch('/get_prediction')
+                .then(response => response.json())
+                .then(data => {
+                    // Update progress bar
+                    currentFrames = data.frames || 0;
+                    const percentage = Math.min(100, (currentFrames / SEQUENCE_LENGTH) * 100);
+                    progressBar.style.width = percentage + '%';
+                    progressText.textContent = `${currentFrames}/${SEQUENCE_LENGTH} เฟรม`;
+                    
+                    // Update prediction
+                    if (data.prediction && data.prediction !== "None") {
                         resultText.textContent = data.prediction;
-                    } else {
-                        resultText.textContent = 'เกิดข้อผิดพลาดในการประมวลผล';
-                        console.error('Error:', data.message);
+                        // If we've completed recording, stop checking
+                        if (currentFrames >= SEQUENCE_LENGTH) {
+                            clearInterval(predictionInterval);
+                        }
                     }
                 })
                 .catch(error => {
-                    console.error('Error sending sequence for processing:', error);
-                    resultText.textContent = 'เกิดข้อผิดพลาดในการส่งข้อมูล';
+                    console.error('Error getting prediction:', error);
                 });
             }
 
             // Record button click handler
             recordBtn.addEventListener('click', function () {
-                sequence = [];
-                currentFrames = 0;
-                isRecording = false;
-                waitingForHand = true;
-                resultText.textContent = "กำลังรอตรวจจับมือ...";
-                
-                // Reset progress bar
-                progressBar.style.width = '0%';
-                progressBar.style.backgroundColor = '#4CAF50';
-                progressText.textContent = `0/${SEQUENCE_LENGTH} เฟรม`;
+                fetch('/start_recording')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Recording started:', data);
+                    resultText.textContent = "กำลังรอตรวจจับมือ...";
+                    
+                    // Reset progress bar
+                    progressBar.style.width = '0%';
+                    progressText.textContent = `0/${SEQUENCE_LENGTH} เฟรม`;
+                    
+                    // Start checking for updates
+                    if (predictionInterval) {
+                        clearInterval(predictionInterval);
+                    }
+                    predictionInterval = setInterval(updatePrediction, 100);
+                })
+                .catch(error => {
+                    console.error('Error starting recording:', error);
+                });
             });
 
             // Clear button click handler
             clearBtn.addEventListener('click', function () {
-                sequence = [];
-                currentFrames = 0;
-                isRecording = false;
-                waitingForHand = false;
-                resultText.textContent = "ยังไม่มีการทำนาย";
-                
-                // Reset progress bar
-                progressBar.style.width = '0%';
-                progressText.textContent = `0/${SEQUENCE_LENGTH} เฟรม`;
-            });
-
-            // Landmarks toggle handler
-            landmarksToggle.addEventListener('change', function () {
-                showLandmarks = this.checked;
-            });
-
-            // Hide camera text toggle handler
-            hideTextToggle.addEventListener('change', function () {
-                showText = !this.checked;
+                fetch('/clear')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Cleared:', data);
+                    resultText.textContent = "ยังไม่มีการทำนาย";
+                    
+                    // Reset progress bar
+                    progressBar.style.width = '0%';
+                    progressText.textContent = `0/${SEQUENCE_LENGTH} เฟรม`;
+                    
+                    // Stop checking for updates
+                    if (predictionInterval) {
+                        clearInterval(predictionInterval);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error clearing:', error);
+                });
             });
         });
     </script>
