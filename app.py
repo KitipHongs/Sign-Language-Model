@@ -5,6 +5,19 @@ import tensorflow as tf
 from flask import Flask, render_template, jsonify, request
 import base64
 import cv2
+import gc
+
+# ตั้งค่า TensorFlow ให้ใช้หน่วยความจำเท่าที่จำเป็น
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
+
+# โหลดโมเดลอย่างมีประสิทธิภาพ
+model = tf.keras.models.load_model("flip_hand_gesture_model.h5", compile=False)
 
 # Load gesture classes
 with open("gesture_classes.json", 'r') as f:
@@ -63,24 +76,27 @@ def gesture_example():
 
 @app.route('/process_frames', methods=['POST'])
 def process_frames():
-    # Get the sequence of frames from the request
-    data = request.json
-    frames_data = data.get('frames', [])
-    
-    if not frames_data:
-        return jsonify({"status": "error", "message": "No frames provided"})
-    
-    # Convert the frames data to a numpy array
     try:
-        # Assuming each frame is already processed and contains the landmarks
-        sequence = np.array([frames_data])
+        # รับข้อมูล
+        data = request.json
+        frames_data = data.get('frames', [])
         
-        # Make prediction
-        prediction = model.predict(sequence, verbose=0)
+        if not frames_data:
+            return jsonify({"status": "error", "message": "ไม่พบข้อมูลเฟรม"})
+        
+        # แปลงเป็น numpy array อย่างมีประสิทธิภาพและตรวจสอบรูปร่างข้อมูล
+        sequence = np.array([frames_data], dtype=np.float32)  # ระบุ dtype เพื่อประหยัดหน่วยความจำ
+        
+        # ทำนายผลด้วยการตั้งค่าที่เหมาะสม
+        prediction = model.predict(sequence, verbose=0, batch_size=1)
         class_idx = np.argmax(prediction[0])
         confidence = np.max(prediction[0])
         
-        # Get the gesture name based on confidence
+        # ล้างหน่วยความจำ
+        del sequence
+        gc.collect()
+        
+        # ได้ผลลัพธ์
         PREDICTION_THRESHOLD = 0.8
         if confidence > PREDICTION_THRESHOLD:
             predicted_gesture = get_gesture_name(class_idx)
