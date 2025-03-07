@@ -10,6 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <style>
+        /* Keep your existing CSS styles */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -57,6 +58,11 @@
             margin: 20px auto;
             padding: 20px;
             text-align: center;
+        }
+
+        .thai-text {
+            font-size: 18px;
+            margin: 20px 0;
         }
 
         .video-container {
@@ -213,35 +219,6 @@
             transform: translateX(-50%);
             z-index: 1;
         }
-
-        .status-indicator {
-            margin-top: 10px;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-weight: bold;
-            background-color: #777;
-            color: white;
-            display: inline-block;
-        }
-
-        .status-ready {
-            background-color: #4CAF50;
-        }
-
-        .status-waiting {
-            background-color: #FFA500;
-        }
-
-        .status-recording {
-            background-color: #F44336;
-            animation: blink 1s infinite;
-        }
-
-        @keyframes blink {
-            50% {
-                opacity: 0.5;
-            }
-        }
     </style>
 </head>
 
@@ -259,7 +236,6 @@
         <div class="video-container">
             <video id="video-feed" autoplay playsinline></video>
             <canvas id="output-canvas" width="400" height="300"></canvas>
-            <div id="status-indicator" class="status-indicator status-ready">พร้อม</div>
         </div>
 
         <div class="toggle-container">
@@ -308,7 +284,6 @@
             const resultText = document.getElementById('result-text');
             const progressBar = document.getElementById('progress-bar');
             const progressText = document.getElementById('progress-text');
-            const statusIndicator = document.getElementById('status-indicator');
 
             // MediaPipe Holistic model
             const holistic = new Holistic({
@@ -334,7 +309,6 @@
             let showText = true;
             let currentFrames = 0;
             const SEQUENCE_LENGTH = 30;
-            let processingPrediction = false;
 
             // Upper body indices for pose landmarks
             const upperBodyIndices = [
@@ -447,30 +421,6 @@
                 canvasCtx.restore();
             }
 
-            // Update status indicator
-            function updateStatus(status) {
-                statusIndicator.className = "status-indicator";
-                
-                switch(status) {
-                    case "ready":
-                        statusIndicator.classList.add("status-ready");
-                        statusIndicator.textContent = "พร้อม";
-                        break;
-                    case "waiting":
-                        statusIndicator.classList.add("status-waiting");
-                        statusIndicator.textContent = "กำลังรอตรวจจับมือ";
-                        break;
-                    case "recording":
-                        statusIndicator.classList.add("status-recording");
-                        statusIndicator.textContent = "กำลังบันทึก";
-                        break;
-                    case "processing":
-                        statusIndicator.classList.add("status-waiting");
-                        statusIndicator.textContent = "กำลังประมวลผล";
-                        break;
-                }
-            }
-
             // Initialize MediaPipe holistic model
             holistic.setOptions({
                 modelComplexity: 1,
@@ -478,6 +428,9 @@
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5
             });
+
+            // Start camera
+            camera.start();
 
             // Event listener for holistic results
             holistic.onResults((results) => {
@@ -488,7 +441,6 @@
                     if (results.leftHandLandmarks || results.rightHandLandmarks) {
                         isRecording = true;
                         waitingForHand = false;
-                        updateStatus("recording");
                     }
                 }
                 
@@ -503,7 +455,6 @@
                         // If we've completed the sequence, send it for processing
                         if (currentFrames === SEQUENCE_LENGTH) {
                             isRecording = false;
-                            updateStatus("processing");
                             sendSequenceForProcessing();
                         }
                     }
@@ -515,13 +466,16 @@
                 const percentage = Math.min(100, (currentFrames / SEQUENCE_LENGTH) * 100);
                 progressBar.style.width = percentage + '%';
                 progressText.textContent = `${currentFrames}/${SEQUENCE_LENGTH} เฟรม`;
+
+                // If we've reached the end of recording
+                if (currentFrames >= SEQUENCE_LENGTH && isRecording) {
+                    isRecording = false;
+                    progressBar.style.backgroundColor = '#4CAF50'; // Green for completion
+                }
             }
 
             // Function to send the sequence to the server for processing
             function sendSequenceForProcessing() {
-                if (processingPrediction) return;
-                
-                processingPrediction = true;
                 fetch('/process_frames', {
                     method: 'POST',
                     headers: {
@@ -533,9 +487,6 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    processingPrediction = false;
-                    updateStatus("ready");
-                    
                     if (data.status === 'success') {
                         resultText.textContent = data.prediction;
                     } else {
@@ -544,33 +495,17 @@
                     }
                 })
                 .catch(error => {
-                    processingPrediction = false;
-                    updateStatus("ready");
                     console.error('Error sending sequence for processing:', error);
                     resultText.textContent = 'เกิดข้อผิดพลาดในการส่งข้อมูล';
                 });
             }
 
-            // Start camera
-            camera.start()
-                .then(() => {
-                    console.log("Camera started successfully");
-                    updateStatus("ready");
-                })
-                .catch(err => {
-                    console.error("Error starting camera:", err);
-                    alert("ไม่สามารถเข้าถึงกล้องได้ กรุณาอนุญาตให้เข้าถึงกล้องและรีเฟรชหน้า");
-                });
-
             // Record button click handler
             recordBtn.addEventListener('click', function () {
-                if (processingPrediction) return;
-                
                 sequence = [];
                 currentFrames = 0;
                 isRecording = false;
                 waitingForHand = true;
-                updateStatus("waiting");
                 resultText.textContent = "กำลังรอตรวจจับมือ...";
                 
                 // Reset progress bar
@@ -585,7 +520,6 @@
                 currentFrames = 0;
                 isRecording = false;
                 waitingForHand = false;
-                updateStatus("ready");
                 resultText.textContent = "ยังไม่มีการทำนาย";
                 
                 // Reset progress bar
