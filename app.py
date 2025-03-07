@@ -2,20 +2,11 @@ import os
 import json
 import numpy as np
 import tensorflow as tf
-import mediapipe as mp  # Add MediaPipe import
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response
 import base64
 import cv2
 import gc
-
-# Set up MediaPipe components
-mp_holistic = mp.solutions.holistic
-mp_drawing = mp.solutions.drawing_utils
-
-# Initialize MediaPipe Holistic model
-holistic = mp_holistic.Holistic(
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5)
+import mediapipe as mp
 
 # ตั้งค่า TensorFlow ให้ใช้หน่วยความจำเท่าที่จำเป็น
 gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -26,8 +17,15 @@ if gpus:
     except RuntimeError as e:
         print(e)
 
-# โหลดโมเดลอย่างมีประสิทธิภาพ
-model = tf.keras.models.load_model("flip_hand_gesture_model.h5", compile=False)
+# Initialize MediaPipe Holistic
+mp_holistic = mp.solutions.holistic
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
+
+# Initialize holistic model
+holistic = mp_holistic.Holistic(
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5)
 
 # Load gesture classes
 with open("gesture_classes.json", 'r') as f:
@@ -58,9 +56,25 @@ thai_translations = {
     "Unknown": "ไม่รู้จัก"
 }
 
-# Function to extract landmarks
+# Load the trained model
+model = tf.keras.models.load_model("flip_hand_gesture_model.h5", compile=False)
+
+# Create Flask app
+app = Flask(__name__)
+
+# Global variables for gesture recognition
+sequence = []
+is_recording = False
+recording_frames = 0
+SEQUENCE_LENGTH = 30
+PREDICTION_THRESHOLD = 0.8
+final_prediction = None
+waiting_for_hand = False
+show_landmarks = False
+show_text = False
+
 def extract_landmarks(frame):
-    # Define upper body indices
+    # Define upper body indices outside the conditional block
     upper_body_indices = [
         0,  # nose
         11, 12,  # shoulders
@@ -103,7 +117,48 @@ def extract_landmarks(frame):
     else:
         landmarks.extend([0] * (len(upper_body_indices) * 3))
     
-    return landmarks
+    return landmarks, results
+
+def draw_landmarks(frame, results):
+    global show_landmarks
+    
+    # Only draw landmarks if show_landmarks is True
+    if not show_landmarks:
+        return
+    
+    # Draw hand landmarks
+    if results.left_hand_landmarks:
+        mp_drawing.draw_landmarks(
+            frame,
+            results.left_hand_landmarks,
+            mp_holistic.HAND_CONNECTIONS,
+            mp_drawing_styles.get_default_hand_landmarks_style(),
+            mp_drawing_styles.get_default_hand_connections_style())
+    
+    if results.right_hand_landmarks:
+        mp_drawing.draw_landmarks(
+            frame,
+            results.right_hand_landmarks,
+            mp_holistic.HAND_CONNECTIONS,
+            mp_drawing_styles.get_default_hand_landmarks_style(),
+            mp_drawing_styles.get_default_hand_connections_style())
+    
+    # Draw face mesh
+    if results.face_landmarks:
+        mp_drawing.draw_landmarks(
+            frame,
+            results.face_landmarks,
+            mp_holistic.FACEMESH_TESSELATION,
+            landmark_drawing_spec=None,
+            connection_drawing_spec=mp_drawing_styles.get_default_face_mesh_tesselation_style())
+    
+    # Draw pose landmarks
+    if results.pose_landmarks:
+        mp_drawing.draw_landmarks(
+            frame,
+            results.pose_landmarks,
+            mp_holistic.POSE_CONNECTIONS,
+            mp_drawing_styles.get_default_pose_landmarks_style())
 
 # Function to get gesture name
 def get_gesture_name(class_idx):
@@ -111,8 +166,77 @@ def get_gesture_name(class_idx):
     # Return Thai translation if available, otherwise return English name
     return thai_translations.get(english_name, english_name)
 
-# Create Flask app
-app = Flask(__name__)
+# Create a generator for the video feed
+def generate_frames():
+    global sequence, is_recording, recording_frames, final_prediction, waiting_for_hand, show_text
+    
+    cap = cv2.VideoCapture(0)  # Use 0 for default camera, change if needed
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        frame = cv2.flip(frame, 1)  # Mirror the image
+        display_frame = frame.copy()
+        
+        # Process frame with MediaPipe
+        landmarks, results = extract_landmarks(frame)
+        
+        # Draw the landmarks on the frame (only if show_landmarks is True)
+        draw_landmarks(display_frame, results)
+        
+        # Check for hand detection when waiting
+        if waiting_for_hand:
+            if results.left_hand_landmarks or results.right_hand_landmarks:
+                is_recording = True
+                waiting_for_hand = False
+            else:
+                # Only show text if show_text is True
+                if show_text:
+                    cv2.putText(display_frame, "ไม่พบมือ กรุณาแสดงมือให้กล้องเห็น",
+                               (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        
+        # Only record frames if we're recording and have detected hands
+        if is_recording and recording_frames < SEQUENCE_LENGTH:
+            if results.left_hand_landmarks or results.right_hand_landmarks:
+                sequence.append(landmarks)
+                recording_frames += 1
+                
+                # Only show text if show_text is True
+                if show_text:
+                    cv2.putText(display_frame, f"เริ่มบันทึก: {recording_frames}/{SEQUENCE_LENGTH}",
+                               (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            else:
+                # If we lose hand detection during recording
+                if show_text:
+                    cv2.putText(display_frame, "ไม่พบมือ กรุณาแสดงมือให้กล้องเห็น",
+                               (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            
+            if recording_frames == SEQUENCE_LENGTH:
+                is_recording = False
+                sequence_array = np.array([sequence])
+                prediction = model.predict(sequence_array, verbose=0)
+                class_idx = np.argmax(prediction[0])
+                confidence = np.max(prediction[0])
+                
+                if confidence > PREDICTION_THRESHOLD:
+                    final_prediction = get_gesture_name(class_idx)
+                else:
+                    final_prediction = "ไม่แน่ใจ"
+        
+        # Draw the prediction on the frame (only if show_text is True)
+        if final_prediction and show_text:
+            cv2.putText(display_frame, f"คำที่ทำนายได้: {final_prediction}",
+                      (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+        
+        # Encode the frame as JPEG
+        ret, buffer = cv2.imencode('.jpg', display_frame)
+        frame_bytes = buffer.tobytes()
+        
+        # Yield the frame for the response
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
 # Routes
 @app.route('/')
@@ -128,6 +252,59 @@ def gesture_example():
     """Render the page for a single gesture example with video."""
     return render_template('gesture.html')
 
+@app.route('/video_feed')
+def video_feed():
+    """Stream the webcam feed with real-time processing."""
+    return Response(generate_frames(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/start_recording')
+def start_recording():
+    """Start recording frames for gesture recognition."""
+    global sequence, is_recording, recording_frames, final_prediction, waiting_for_hand
+    sequence = []
+    recording_frames = 0
+    final_prediction = None
+    is_recording = False
+    waiting_for_hand = True
+    return jsonify({"status": "waiting_for_hand"})
+
+@app.route('/clear')
+def clear():
+    """Reset all recording variables."""
+    global sequence, is_recording, recording_frames, final_prediction, waiting_for_hand
+    sequence = []
+    is_recording = False
+    waiting_for_hand = False
+    recording_frames = 0
+    final_prediction = None
+    return jsonify({"status": "cleared"})
+
+@app.route('/get_prediction')
+def get_prediction():
+    """Return the current prediction and recording progress."""
+    global final_prediction, recording_frames
+    return jsonify({
+        "prediction": final_prediction if final_prediction else "None",
+        "frames": recording_frames
+    })
+
+@app.route('/toggle_landmarks', methods=['POST'])
+def toggle_landmarks():
+    """Toggle the display of landmarks on video feed."""
+    global show_landmarks
+    data = request.get_json()
+    show_landmarks = data.get('show', show_landmarks)
+    return jsonify({"status": "success", "show_landmarks": show_landmarks})
+
+@app.route('/toggle_text', methods=['POST'])
+def toggle_text():
+    """Toggle the display of text information on video feed."""
+    global show_text
+    data = request.get_json()
+    show_text = not data.get('hide', False)  # Invert the hide value
+    return jsonify({"status": "success", "show_text": show_text})
+
 @app.route('/process_frames', methods=['POST'])
 def process_frames():
     try:
@@ -138,25 +315,8 @@ def process_frames():
         if not frames_data:
             return jsonify({"status": "error", "message": "ไม่พบข้อมูลเฟรม"})
         
-        # Modified to process frames correctly
-        # Check if frames_data contains raw images (from frontend) or already extracted landmarks
-        if isinstance(frames_data[0], list) and all(isinstance(x, (int, float)) for x in frames_data[0]):
-            # These are already landmarks
-            sequence = np.array([frames_data], dtype=np.float32)
-        else:
-            # These are base64 encoded images, need to process them
-            processed_frames = []
-            for frame_b64 in frames_data:
-                # Decode base64 to image
-                frame_data = base64.b64decode(frame_b64.split(',')[1])
-                nparr = np.frombuffer(frame_data, np.uint8)
-                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                
-                # Extract landmarks using MediaPipe
-                landmarks = extract_landmarks(frame)
-                processed_frames.append(landmarks)
-            
-            sequence = np.array([processed_frames], dtype=np.float32)
+        # แปลงเป็น numpy array อย่างมีประสิทธิภาพและตรวจสอบรูปร่างข้อมูล
+        sequence = np.array([frames_data], dtype=np.float32)  # ระบุ dtype เพื่อประหยัดหน่วยความจำ
         
         # ทำนายผลด้วยการตั้งค่าที่เหมาะสม
         prediction = model.predict(sequence, verbose=0, batch_size=1)
@@ -168,7 +328,6 @@ def process_frames():
         gc.collect()
         
         # ได้ผลลัพธ์
-        PREDICTION_THRESHOLD = 0.8
         if confidence > PREDICTION_THRESHOLD:
             predicted_gesture = get_gesture_name(class_idx)
         else:
