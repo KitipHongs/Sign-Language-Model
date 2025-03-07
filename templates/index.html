@@ -5,7 +5,12 @@
     <title>Sign Language Translation</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/3.9.0/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <style>
+        /* Keep your existing CSS styles */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -64,7 +69,8 @@
             width: 100%;
             margin: 20px 0;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            align-items: center;
             position: relative;
         }
 
@@ -74,33 +80,6 @@
             background-color: #ddd;
             border: 1px solid #ccc;
             box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.2);
-        }
-
-        .test-icon {
-            position: absolute;
-            right: 10%;
-            top: 0;
-            text-align: center;
-        }
-
-        .test-icon-box {
-            width: 40px;
-            height: 40px;
-            background-color: white;
-            border: 2px solid black;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            font-weight: bold;
-        }
-
-        .test-label {
-            background-color: #6b9eff;
-            color: white;
-            padding: 5px 15px;
-            border-radius: 15px;
-            margin-top: 5px;
         }
 
         .control-buttons {
@@ -187,7 +166,7 @@
             transform: translateX(26px);
         }
 
-        /* Progress bar (energy bar) styles */
+        /* Progress bar styles */
         .progress-container {
             width: 400px;
             height: 20px;
@@ -232,19 +211,19 @@
             color: #333;
         }
 
-        /* Toggle for camera text visibility */
-        .toggle-container-text {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 15px 0;
+        /* Canvas overlay for drawing landmarks */
+        #output-canvas {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
         }
     </style>
 </head>
 
 <body>
     <div class="header">
-        <!-- แทนที่ลิงก์เดิมด้วยลิงก์ที่ถูกต้องสำหรับการแสดงรูปภาพจาก Google Drive -->
         <div class="logo-container">
             <img src="https://drive.google.com/thumbnail?id=1-qu6krosVXPoB5X-ddUQc-gRdhfD6sSC&sz=w1000" alt="Logo 1" class="logo">
             <img src="https://drive.google.com/thumbnail?id=1DtFpHlqoJzqmSFR3qWPhnfNVaNHs3T_9&sz=w1000" alt="Logo 2" class="logo">
@@ -254,10 +233,22 @@
     </div>
 
     <div class="container">
-        
-
         <div class="video-container">
-            <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Video Feed">
+            <video id="video-feed" autoplay playsinline></video>
+            <canvas id="output-canvas" width="400" height="300"></canvas>
+        </div>
+
+        <div class="toggle-container">
+            <span>แสดงจุด Landmarks:</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="landmarks-toggle">
+                <span class="slider"></span>
+            </label>
+            <span>ซ่อนข้อความในกล้อง:</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="hide-text-toggle">
+                <span class="slider"></span>
+            </label>
         </div>
 
         <!-- Progress/Energy bar with frame counter -->
@@ -283,6 +274,9 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const videoElement = document.getElementById('video-feed');
+            const canvasElement = document.getElementById('output-canvas');
+            const canvasCtx = canvasElement.getContext('2d');
             const recordBtn = document.getElementById('record-btn');
             const clearBtn = document.getElementById('clear-btn');
             const landmarksToggle = document.getElementById('landmarks-toggle');
@@ -291,123 +285,256 @@
             const progressBar = document.getElementById('progress-bar');
             const progressText = document.getElementById('progress-text');
 
-            let currentFrames = 0;
-            let totalFrames = 30; // Set to match SEQUENCE_LENGTH in your Flask app
+            // MediaPipe Holistic model
+            const holistic = new Holistic({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
+                }
+            });
+
+            // Set up the camera
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await holistic.send({ image: videoElement });
+                },
+                width: 400,
+                height: 300
+            });
+
+            // Variables for recording sequence
+            let sequence = [];
             let isRecording = false;
-            let updateInterval;
+            let waitingForHand = false;
+            let showLandmarks = false;
+            let showText = true;
+            let currentFrames = 0;
+            const SEQUENCE_LENGTH = 30;
 
-            // Function to update prediction and status
-            function updateStatus() {
-                fetch('/get_prediction')
-                    .then(response => response.json())
-                    .then(data => {
-                        // Update prediction result
-                        if (data.prediction !== "None") {
-                            resultText.textContent = data.prediction;
-                        }
+            // Upper body indices for pose landmarks
+            const upperBodyIndices = [
+                0,  // nose
+                11, 12,  // shoulders
+                13, 14, 15, 16,  // arms
+                23, 24,  // hips
+                19, 20,  // elbows
+                21, 22,  // wrists
+            ];
 
-                        // If frames info is available in the response
-                        if (data.hasOwnProperty('frames')) {
-                            currentFrames = data.frames;
-                            updateProgressBar();
-                        }
-                    })
-                    .catch(error => console.error('Error fetching status:', error));
+            // Extract landmarks from MediaPipe results
+            function extractLandmarks(results) {
+                const landmarks = [];
+                
+                // 1. Extract Hand landmarks (21 points per hand)
+                if (results.leftHandLandmarks) {
+                    for (const landmark of results.leftHandLandmarks) {
+                        landmarks.push(landmark.x, landmark.y, landmark.z);
+                    }
+                } else {
+                    // Pad with zeros if no left hand detected
+                    landmarks.push(...Array(21 * 3).fill(0));
+                }
+                
+                if (results.rightHandLandmarks) {
+                    for (const landmark of results.rightHandLandmarks) {
+                        landmarks.push(landmark.x, landmark.y, landmark.z);
+                    }
+                } else {
+                    // Pad with zeros if no right hand detected
+                    landmarks.push(...Array(21 * 3).fill(0));
+                }
+                
+                // 2. Extract Face mesh landmarks (468 points)
+                if (results.faceLandmarks) {
+                    for (const landmark of results.faceLandmarks) {
+                        landmarks.push(landmark.x, landmark.y, landmark.z);
+                    }
+                } else {
+                    // Pad with zeros if no face detected
+                    landmarks.push(...Array(468 * 3).fill(0));
+                }
+                
+                // 3. Extract Upper body landmarks
+                if (results.poseLandmarks) {
+                    // Extract only upper body points
+                    for (const idx of upperBodyIndices) {
+                        const landmark = results.poseLandmarks[idx];
+                        landmarks.push(landmark.x, landmark.y, landmark.z);
+                    }
+                } else {
+                    // Pad with zeros if no pose detected
+                    landmarks.push(...Array(upperBodyIndices.length * 3).fill(0));
+                }
+                
+                return landmarks;
             }
+
+            // Draw landmarks on canvas
+            function drawLandmarks(results) {
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                
+                // Only draw if showLandmarks is true
+                if (showLandmarks) {
+                    if (results.leftHandLandmarks) {
+                        drawConnectors(canvasCtx, results.leftHandLandmarks, HAND_CONNECTIONS,
+                            { color: '#00FF00', lineWidth: 2 });
+                        drawLandmarks(canvasCtx, results.leftHandLandmarks,
+                            { color: '#FF0000', lineWidth: 1 });
+                    }
+                    
+                    if (results.rightHandLandmarks) {
+                        drawConnectors(canvasCtx, results.rightHandLandmarks, HAND_CONNECTIONS,
+                            { color: '#00FF00', lineWidth: 2 });
+                        drawLandmarks(canvasCtx, results.rightHandLandmarks,
+                            { color: '#FF0000', lineWidth: 1 });
+                    }
+                    
+                    if (results.faceLandmarks) {
+                        drawConnectors(canvasCtx, results.faceLandmarks, FACEMESH_TESSELATION,
+                            { color: '#00FF00', lineWidth: 0.5 });
+                    }
+                    
+                    if (results.poseLandmarks) {
+                        drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+                            { color: '#00FF00', lineWidth: 2 });
+                        drawLandmarks(canvasCtx, results.poseLandmarks,
+                            { color: '#FF0000', lineWidth: 1 });
+                    }
+                }
+                
+                // Draw text information
+                if (showText) {
+                    canvasCtx.font = '16px Arial';
+                    canvasCtx.fillStyle = '#FF0000';
+                    
+                    if (waitingForHand) {
+                        if (!results.leftHandLandmarks && !results.rightHandLandmarks) {
+                            canvasCtx.fillText("ไม่พบมือ กรุณาแสดงมือให้กล้องเห็น", 10, 60);
+                        }
+                    }
+                    
+                    if (isRecording) {
+                        canvasCtx.fillText(`เริ่มบันทึก: ${currentFrames}/${SEQUENCE_LENGTH}`, 10, 60);
+                    }
+                }
+                
+                canvasCtx.restore();
+            }
+
+            // Initialize MediaPipe holistic model
+            holistic.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            // Start camera
+            camera.start();
+
+            // Event listener for holistic results
+            holistic.onResults((results) => {
+                drawLandmarks(results);
+                
+                // Check for hand detection when waiting
+                if (waitingForHand) {
+                    if (results.leftHandLandmarks || results.rightHandLandmarks) {
+                        isRecording = true;
+                        waitingForHand = false;
+                    }
+                }
+                
+                // Only record frames if we're recording and have detected hands
+                if (isRecording && currentFrames < SEQUENCE_LENGTH) {
+                    if (results.leftHandLandmarks || results.rightHandLandmarks) {
+                        const landmarks = extractLandmarks(results);
+                        sequence.push(landmarks);
+                        currentFrames++;
+                        updateProgressBar();
+                        
+                        // If we've completed the sequence, send it for processing
+                        if (currentFrames === SEQUENCE_LENGTH) {
+                            isRecording = false;
+                            sendSequenceForProcessing();
+                        }
+                    }
+                }
+            });
 
             // Function to update progress bar based on frames
             function updateProgressBar() {
-                const percentage = Math.min(100, (currentFrames / totalFrames) * 100);
+                const percentage = Math.min(100, (currentFrames / SEQUENCE_LENGTH) * 100);
                 progressBar.style.width = percentage + '%';
-                progressText.textContent = `${currentFrames}/${totalFrames} เฟรม`;
+                progressText.textContent = `${currentFrames}/${SEQUENCE_LENGTH} เฟรม`;
 
                 // If we've reached the end of recording
-                if (currentFrames >= totalFrames && isRecording) {
+                if (currentFrames >= SEQUENCE_LENGTH && isRecording) {
                     isRecording = false;
                     progressBar.style.backgroundColor = '#4CAF50'; // Green for completion
                 }
             }
 
-            // Set up interval to periodically update status
-            updateInterval = setInterval(updateStatus, 100);
+            // Function to send the sequence to the server for processing
+            function sendSequenceForProcessing() {
+                fetch('/process_frames', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        frames: sequence
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        resultText.textContent = data.prediction;
+                    } else {
+                        resultText.textContent = 'เกิดข้อผิดพลาดในการประมวลผล';
+                        console.error('Error:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error sending sequence for processing:', error);
+                    resultText.textContent = 'เกิดข้อผิดพลาดในการส่งข้อมูล';
+                });
+            }
 
             // Record button click handler
             recordBtn.addEventListener('click', function () {
-                fetch('/start_recording')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === "waiting_for_hand") {
-                            resultText.textContent = "กำลังรอตรวจจับมือ...";
-                            currentFrames = 0;
-                            isRecording = true;
-                            progressBar.style.width = '0%';
-                            progressBar.style.backgroundColor = '#4CAF50';
-                            progressText.textContent = `0/${totalFrames} เฟรม`;
-                        }
-                    })
-                    .catch(error => console.error('Error starting recording:', error));
+                sequence = [];
+                currentFrames = 0;
+                isRecording = false;
+                waitingForHand = true;
+                resultText.textContent = "กำลังรอตรวจจับมือ...";
+                
+                // Reset progress bar
+                progressBar.style.width = '0%';
+                progressBar.style.backgroundColor = '#4CAF50';
+                progressText.textContent = `0/${SEQUENCE_LENGTH} เฟรม`;
             });
 
             // Clear button click handler
             clearBtn.addEventListener('click', function () {
-                fetch('/clear')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === "cleared") {
-                            resultText.textContent = "ยังไม่มีการทำนาย";
-                            currentFrames = 0;
-                            isRecording = false;
-                            progressBar.style.width = '0%';
-                            progressText.textContent = `0/${totalFrames} เฟรม`;
-                        }
-                    })
-                    .catch(error => console.error('Error clearing data:', error));
+                sequence = [];
+                currentFrames = 0;
+                isRecording = false;
+                waitingForHand = false;
+                resultText.textContent = "ยังไม่มีการทำนาย";
+                
+                // Reset progress bar
+                progressBar.style.width = '0%';
+                progressText.textContent = `0/${SEQUENCE_LENGTH} เฟรม`;
             });
 
             // Landmarks toggle handler
             landmarksToggle.addEventListener('change', function () {
-                const showLandmarks = this.checked;
-
-                fetch('/toggle_landmarks', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        show: showLandmarks
-                    })
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Landmarks visibility updated:', data);
-                    })
-                    .catch(error => console.error('Error toggling landmarks:', error));
+                showLandmarks = this.checked;
             });
 
             // Hide camera text toggle handler
             hideTextToggle.addEventListener('change', function () {
-                const hideText = this.checked;
-
-                fetch('/toggle_text', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        hide: hideText
-                    })
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Text visibility updated:', data);
-                    })
-                    .catch(error => console.error('Error toggling text visibility:', error));
-            });
-
-            // Examples button handler
-            document.querySelector('.examples-button').addEventListener('click', function (e) {
-                e.preventDefault();
-                window.location.href = '/examples';
+                showText = !this.checked;
             });
         });
     </script>
