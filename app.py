@@ -50,7 +50,7 @@ def get_gesture_name(class_idx):
 # Routes
 @app.route('/')
 def index():
-    return render_template('index_client.html')
+    return render_template('index.html')
 
 @app.route('/examples')
 def examples():
